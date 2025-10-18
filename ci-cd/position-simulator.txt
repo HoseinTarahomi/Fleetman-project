@@ -1,0 +1,47 @@
+stages:
+  - build
+  - deploy
+
+Build App:
+  stage: build
+  tags:
+    - build
+  script:
+    - TAG=${CI_COMMIT_REF_NAME}-${CI_PIPELINE_ID}
+    - docker image build . -t $REGISTRY_URL/$REPO_NAME/simulator:$TAG
+    - echo $REGISTRY_PASSWORD | docker login $REGISTRY_URL -u $REGISTRY_USERNAME --password-stdin
+    - docker image push $REGISTRY_URL/$REPO_NAME/simulator:$TAG
+    - echo $TAG > tag.txt  # ذخیره مقدار TAG در فایل
+    - git clone http://$GH_USERNAME:$GH_TOKEN@192.168.208.144/root/deployments.git  # کلون کردن مخزن devops
+    - cd deployments
+    - git checkout develop  # یا هر شاخه‌ای که بخواهید تغییرات را در آن commit کنید
+    - sed -i "s|reg.iranshahrit.com:4443/$REPO_NAME/simulator:.*|reg.iranshahrit.com:4443/$REPO_NAME/simulator:$TAG|g" simulator.yaml
+  # تغییر TAG در فایل
+    - git config --global user.email "your-email@example.com"  # تنظیم ایمیل برای git
+    - git config --global user.name "Your Name"  # تنظیم نام کاربری برای git
+    - git add .  # اضافه کردن تغییرات به staging area
+    - git commit -m "Update dynamic tag $TAG"  # کامیت کردن تغییرات
+    - git push http://$GH_USERNAME:$GH_TOKEN@192.168.208.144/root/deployments.git develop  # پوش کردن تغییرات به شاخه develop
+  artifacts:
+    paths:
+      - tag.txt  # ذخیره فایل tag.txt به عنوان artifact
+    expire_in: 1 hour  # فایل برای یک ساعت قابل دسترسی است
+
+
+Deploy App:
+  stage: deploy
+  tags:
+    - deploy
+  image: bitnami/kubectl:latest
+  script:
+    - set -e
+    - git clone http://$GH_USERNAME:$GH_TOKEN@192.168.208.144/root/deployments.git
+    - cd deployments
+    - git checkout develop
+
+    # ساخت kubeconfig از متغیر GitLab
+    - echo "$KUBECONFIG_CONTENT" > kubeconfig
+    - export KUBECONFIG=$(pwd)/kubeconfig
+
+    # اعمال تغییرات روی Kubernetes
+    - kubectl apply -f simulator.yaml

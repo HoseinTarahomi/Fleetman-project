@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleetman-queue
+  namespace: default
+  labels:
+    app: fleetman-queue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fleetman-queue
+  template:
+    metadata:
+      labels:
+        app: fleetman-queue
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: fleetman-queue
+          image: reg.iranshahrit.com:4443/activemq/activemq:develop-76
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: activemq-config-volume
+              mountPath: /apache-activemq-5.17.3/conf/jetty.xml
+              subPath: jetty.xml
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: webapp-config
+                  key: SPRING_PROFILES_ACTIVE
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      volumes:
+        - name: activemq-config-volume
+          configMap:
+            name: activemq-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console
+  labels:
+    app: fleetman-queue
+spec:
+  type: NodePort
+  selector:
+    app: fleetman-queue
+  ports:
+  - name: console
+    port: 8161
+    targetPort: 8161
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: endpoint
+  labels:
+    app: fleetman-queue
+spec:
+  type: ClusterIP   # <-- اینجا تغییر کرد
+  selector:
+    app: fleetman-queue
+  ports:
+    - name: endpoint
+      port: 61616
+      targetPort: 61616
+      protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fleetman-queue-hpa
+  labels:
+    app: fleetman-queue
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fleetman-queue
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+

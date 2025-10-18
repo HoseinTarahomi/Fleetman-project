@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleetman-mongodb
+  namespace: default
+  labels:
+    app: fleetman-mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fleetman-mongodb
+  template:
+    metadata:
+      labels:
+        app: fleetman-mongodb
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+      - name: mongodb
+        image: reg.iranshahrit.com:4443/mongodb/mongodb:develop-80
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+           configMapKeyRef:
+            name: webapp-config
+            key: SPRING_PROFILES_ACTIVE
+        ports:
+        - containerPort: 27017
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "800m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleetman-mongodb
+  labels:
+    app: fleetman-mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: fleetman-mongodb
+  ports:
+  - name: fleetman-mongodb
+    port: 27017
+    targetPort: 27017
+    protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fleetman-mongodb-hpa
+  labels:
+    app: fleetman-mongodb
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fleetman-mongodb
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+
