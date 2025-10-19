@@ -1,0 +1,66 @@
+---
+- name: Install Docker and setup Harbor
+  hosts: harbor
+  become: true
+  tasks:
+
+    # 1️⃣ نصب Docker
+    - name: Install required packages
+      ansible.builtin.package:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
+
+    - name: Add Docker repository
+      ansible.builtin.command: >
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      args:
+        creates: /etc/yum.repos.d/docker-ce.repo
+
+    - name: Install Docker Engine
+      ansible.builtin.package:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Enable and start Docker
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # 2️⃣ انتقال فایل نصب Harbor
+    - name: Copy Harbor installer package to target
+      ansible.builtin.copy:
+        src: /root/harbor-offline-installer-v2.11.1.tgz
+        dest: /opt/harbor-offline-installer-v2.11.1.tgz
+        mode: '0644'
+
+    # 3️⃣ استخراج فایل tgz
+    - name: Extract Harbor package
+      ansible.builtin.unarchive:
+        src: /opt/harbor-offline-installer-v2.11.1.tgz
+        dest: /opt/
+        remote_src: yes
+
+    # 4️⃣ ایجاد فایل harbor.yml
+    - name: Copy harbor.yml.tmpl to harbor.yml
+      ansible.builtin.copy:
+        src: /opt/harbor/harbor.yml.tmpl
+        dest: /opt/harbor/harbor.yml
+        remote_src: yes
+
+    # 5️⃣ تغییر مسیر گواهی‌ها و رمز عبور ادمین
+    - name: Update certificate paths and admin password
+      ansible.builtin.replace:
+        path: /opt/harbor/harbor.yml
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      loop:
+        - { regexp: 'certificate: /path/to/public.crt', replace: 'certificate: /opt/harbor/fullchain1.crt' }
+        - { regexp: 'private_key: /path/to/private.key', replace: 'private_key: /opt/harbor/privkey1.key' }
+        - { regexp: 'harbor_admin_password:\s*Harbor12345', replace: 'harbor_admin_password: 123456' }
