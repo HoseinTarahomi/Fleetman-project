@@ -34,8 +34,8 @@
 fleetman/
 ├── manifests/        # فایل‌های YAML مربوط به Kubernetes
 ├── ci-cd/            # فایل‌های pipeline مربوط به GitLab
-├── harbor/           # تنظیمات مربوط به Image Registry
-├── src/              # سورس‌کد سرویس‌ها و Dockerfileها
+├── ansible/           # تنظیمات مربوط به نصب و اجرای Harbor
+├── apps/              # سورس‌کد سرویس‌ها و Dockerfileها
 └── README.md         # مستندات پروژه
 ```
 
